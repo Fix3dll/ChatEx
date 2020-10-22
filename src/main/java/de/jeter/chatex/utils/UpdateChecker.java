@@ -1,17 +1,17 @@
 /*
  * This file is part of ChatEx
  * Copyright (C) 2020 ChatEx Team
- * 
+ *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
@@ -27,7 +27,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.logging.Level;
 
 public class UpdateChecker {
 
@@ -35,7 +34,6 @@ public class UpdateChecker {
 
     private final JavaPlugin plugin;
     private final int id;
-    private final Thread thread;
 
     private Result result = Result.NO_UPDATE;
     private String version;
@@ -46,8 +44,7 @@ public class UpdateChecker {
         this.plugin = plugin;
         this.id = id;
         this.USER_AGENT = plugin.getName() + " UpdateChecker";
-        thread = new Thread(new UpdaterRunnable());
-        thread.start();
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, this::checkUpdate);
     }
 
     public enum Result {
@@ -64,7 +61,6 @@ public class UpdateChecker {
      * @see Result
      */
     public Result getResult() {
-        waitThread();
         return result;
     }
 
@@ -74,35 +70,7 @@ public class UpdateChecker {
      * @return latest version.
      */
     public String getVersion() {
-        waitThread();
         return version;
-    }
-
-    /**
-     * Check if id of resource is valid
-     *
-     * @param link link of the resource
-     * @return true if id of resource is valid
-     */
-    private boolean checkResource(String link) {
-        try {
-            URL url = new URL(link);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.addRequestProperty("User-Agent", USER_AGENT);
-
-            int code = connection.getResponseCode();
-
-            if (code != 200) {
-                connection.disconnect();
-                result = Result.BAD_ID;
-                return false;
-            }
-            connection.disconnect();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        return true;
     }
 
     /**
@@ -135,6 +103,7 @@ public class UpdateChecker {
                 result = Result.NO_UPDATE;
             }
         } catch (Exception e) {
+            result = Result.FAILED;
             e.printStackTrace();
         }
     }
@@ -147,8 +116,8 @@ public class UpdateChecker {
      */
     private boolean shouldUpdate(String newVersion, String oldVersion) {
         try {
-            float oldV = Float.valueOf(oldVersion.replaceAll("\\.", "").replace("v", "."));
-            float newV = Float.valueOf(newVersion.replaceAll("\\.", "").replace("v", "."));
+            float oldV = Float.parseFloat(oldVersion.replaceAll("\\.", "").replace("v", "."));
+            float newV = Float.parseFloat(newVersion.replaceAll("\\.", "").replace("v", "."));
             return oldV < newV;
         } catch (NumberFormatException ex) {
             ex.printStackTrace();
@@ -156,27 +125,4 @@ public class UpdateChecker {
         }
     }
 
-    /**
-     * Updater depends on thread's completion, so it is necessary to wait for
-     * thread to finish.
-     */
-    private void waitThread() {
-        if (thread != null && thread.isAlive()) {
-            try {
-                thread.join();
-            } catch (InterruptedException e) {
-                this.plugin.getLogger().log(Level.SEVERE, null, e);
-            }
-        }
-    }
-
-    public class UpdaterRunnable implements Runnable {
-
-        @Override
-        public void run() {
-            if (checkResource(API_RESOURCE + id)) {
-                checkUpdate();
-            }
-        }
-    }
 }
